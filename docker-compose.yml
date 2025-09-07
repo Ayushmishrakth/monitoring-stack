@@ -59,6 +59,15 @@ services:
     networks:
       - monitoring
 
+  ai-monitoring-app:
+    build: ./ai-monitoring-app
+    container_name: ai-monitoring-app
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - monitoring
+
 networks:
   monitoring:
     driver: bridge
