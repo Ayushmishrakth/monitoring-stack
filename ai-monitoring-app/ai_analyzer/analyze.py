@@ -1,11 +1,11 @@
 # ai_analyzer/analyze.py
 import requests
-import ollama
 from ollama import Client
 
+# Initialize Ollama client (no base_url)
 client = Client()
 
-# Use localhost and mapped ports
+# Use Docker container names for inter-container communication
 PROMETHEUS_HOST = "http://prometheus:9090"
 LOKI_HOST = "http://loki:3100"
 
@@ -15,7 +15,7 @@ def fetch_prometheus_metrics():
             f"{PROMETHEUS_HOST}/api/v1/query",
             params={"query": "request_count"}
         )
-        return response.json()["data"]["result"]
+        return response.json().get("data", {}).get("result", [])
     except Exception as e:
         print("Error fetching metrics:", e)
         return []
@@ -26,7 +26,7 @@ def fetch_loki_logs():
             f"{LOKI_HOST}/loki/api/v1/query",
             params={"query": '{job="docker-logs"}|~"error"', "limit": 50}
         )
-        return response.json()["data"]["result"]
+        return response.json().get("data", {}).get("result", [])
     except Exception as e:
         print("Error fetching logs:", e)
         return []

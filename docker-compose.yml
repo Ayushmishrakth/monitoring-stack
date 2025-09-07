@@ -5,9 +5,9 @@ services:
     build: ./sample-app
     container_name: sample-app
     ports:
-      - "8085:80"         # Host:Container port
+      - "50080:80"         # Windows-safe host port
     networks:
-      - monitoring
+      - monitoring-stack_monitoring   # updated network
 
   prometheus:
     image: prom/prometheus:latest
@@ -15,17 +15,17 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
-      - "9090:9090"
+      - "59090:9090"       # Windows-safe host port
     networks:
-      - monitoring
+      - monitoring-stack_monitoring
 
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "53000:3000"       # Windows-safe host port
     networks:
-      - monitoring
+      - monitoring-stack_monitoring
     depends_on:
       - prometheus
       - loki
@@ -35,19 +35,18 @@ services:
     container_name: loki
     command: -config.file=/etc/loki/local-config.yaml
     ports:
-      - "3100:3100"
+      - "53100:3100"       # Windows-safe host port
     networks:
-      - monitoring
+      - monitoring-stack_monitoring
 
   promtail:
     image: grafana/promtail:2.9.0
     container_name: promtail
     volumes:
       - ./promtail-config.yml:/etc/promtail/config.yml
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/config.yml
     networks:
-      - monitoring
+      - monitoring-stack_monitoring
     depends_on:
       - loki
 
@@ -55,9 +54,9 @@ services:
     image: prom/node-exporter:latest
     container_name: node-exporter
     ports:
-      - "9100:9100"
+      - "59100:9100"       # Windows-safe host port
     networks:
-      - monitoring
+      - monitoring-stack_monitoring
 
   ai-monitoring-app:
     build: ./ai-monitoring-app
@@ -66,8 +65,9 @@ services:
       - prometheus
       - loki
     networks:
-      - monitoring
-
+      - monitoring-stack_monitoring
+    command: sh -c "while true; do python ai_analyzer/analyze.py; sleep 10; done"
+    
 networks:
-  monitoring:
-    driver: bridge
+  monitoring-stack_monitoring:
+    external: true
