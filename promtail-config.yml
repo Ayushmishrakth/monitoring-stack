@@ -15,6 +15,11 @@ scrape_configs:
           - localhost
         labels:
           job: sample-app
-          __path__: /var/lib/docker/containers/*/*.log
+          __path__: /var/lib/docker/containers/*/sample-app*.log
+      - targets:
+          - localhost
+        labels:
+          job: ai-monitoring-app
+          __path__: /var/lib/docker/containers/*/ai-monitoring-app*.log
     pipeline_stages:
       - docker: {}  # Parse Docker JSON logs

@@ -1,13 +1,24 @@
-version: "3.9"
+
 
 services:
   sample-app:  
     build: ./sample-app
     container_name: sample-app
     ports:
-      - "50080:80"         # Windows-safe host port
+      - "50080:80"
     networks:
-      - monitoring-stack_monitoring   # updated network
+      - monitoring-stack_monitoring
+
+  ai-monitoring-app:
+    build: ./ai-monitoring-app
+    container_name: ai-monitoring-app
+    ports:
+      - "50050:5000"
+    networks:
+      - monitoring-stack_monitoring
+    depends_on:
+      - prometheus
+      - loki
 
   prometheus:
     image: prom/prometheus:latest
@@ -15,7 +26,7 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
-      - "59090:9090"       # Windows-safe host port
+      - "59090:9090"
     networks:
       - monitoring-stack_monitoring
 
@@ -23,7 +34,7 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "53000:3000"       # Windows-safe host port
+      - "53000:3000"
     networks:
       - monitoring-stack_monitoring
     depends_on:
@@ -35,7 +46,7 @@ services:
     container_name: loki
     command: -config.file=/etc/loki/local-config.yaml
     ports:
-      - "53100:3100"       # Windows-safe host port
+      - "53100:3100"
     networks:
       - monitoring-stack_monitoring
 
@@ -44,6 +55,8 @@ services:
     container_name: promtail
     volumes:
       - ./promtail-config.yml:/etc/promtail/config.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
     command: -config.file=/etc/promtail/config.yml
     networks:
       - monitoring-stack_monitoring
@@ -54,20 +67,10 @@ services:
     image: prom/node-exporter:latest
     container_name: node-exporter
     ports:
-      - "59100:9100"       # Windows-safe host port
+      - "59100:9100"
     networks:
       - monitoring-stack_monitoring
 
-  ai-monitoring-app:
-    build: ./ai-monitoring-app
-    container_name: ai-monitoring-app
-    depends_on:
-      - prometheus
-      - loki
-    networks:
-      - monitoring-stack_monitoring
-    command: sh -c "while true; do python ai_analyzer/analyze.py; sleep 10; done"
-    
 networks:
   monitoring-stack_monitoring:
     external: true
