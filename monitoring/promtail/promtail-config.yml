@@ -1,0 +1,49 @@
+# Promtail Configuration
+# ──────────────────────
+# Collects logs from Docker containers by reading from the
+# Docker log directory. Uses docker_sd_configs for auto-discovery
+# so any new container in the compose stack is picked up automatically.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # ── Docker container log discovery ──────────────────────
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Keep only containers with a compose service label
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: compose_service
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container_name
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: compose_project
+    pipeline_stages:
+      # Try to parse JSON logs (our app emits structured JSON)
+      - json:
+          expressions:
+            level: level
+            msg: message
+            traceId: traceId
+            service: service
+            timestamp: timestamp
+      - labels:
+          level:
+          service:
+      # Add traceId as a label only when present (for Loki→Tempo linking)
+      - template:
+          source: traceId
+          template: '{{ if .traceId }}{{ .traceId }}{{ end }}'
+      - output:
+          source: msg

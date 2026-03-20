@@ -1,0 +1,143 @@
+# ═══════════════════════════════════════════════════════════════
+#  APM Observability Platform — Docker Compose
+# ═══════════════════════════════════════════════════════════════
+#  All services run on the same Docker network (apm-network).
+#  Service names are used as hostnames for inter-container DNS.
+#
+#  Ports exposed on host:
+#    3000  → App (Node.js)
+#    9090  → Prometheus
+#    3100  → Loki
+#    3200  → Tempo
+#    3001  → Grafana (mapped from 3000 inside container)
+#    4318  → Tempo OTLP HTTP (for external trace ingestion)
+# ═══════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Node.js Application ──────────────────────────────────────
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: apm-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318/v1/traces
+    depends_on:
+      tempo:
+        condition: service_started
+      loki:
+        condition: service_started
+    networks:
+      - apm-network
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
+
+  # ── Prometheus (Metrics) ─────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: apm-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-remote-write-receiver'
+      - '--enable-feature=exemplar-storage'
+    depends_on:
+      - app
+    networks:
+      - apm-network
+    restart: unless-stopped
+
+  # ── Loki (Log Aggregation) ──────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: apm-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - apm-network
+    restart: unless-stopped
+
+  # ── Promtail (Log Collector) ────────────────────────────────
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: apm-promtail
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - apm-network
+    restart: unless-stopped
+
+  # ── Tempo (Distributed Tracing) ─────────────────────────────
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: apm-tempo
+    ports:
+      - "3200:3200"    # Tempo API / UI
+      - "4318:4318"    # OTLP HTTP receiver
+    volumes:
+      - ./monitoring/tempo/tempo.yml:/etc/tempo/config.yml:ro
+      - tempo-data:/tmp/tempo
+    command:
+      - '-config.file=/etc/tempo/config.yml'
+    networks:
+      - apm-network
+    restart: unless-stopped
+
+  # ── Grafana (Visualization) ─────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: apm-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor tempoSearch tempoServiceGraph
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/provisioning/dashboards/apm-dashboard.json:/var/lib/grafana/dashboards/apm-dashboard.json:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    networks:
+      - apm-network
+    restart: unless-stopped
+
+# ── Volumes ──────────────────────────────────────────────────
+volumes:
+  prometheus-data:
+  loki-data:
+  tempo-data:
+  grafana-data:
+
+# ── Network ──────────────────────────────────────────────────
+networks:
+  apm-network:
+    driver: bridge

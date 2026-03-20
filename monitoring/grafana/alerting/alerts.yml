@@ -1,0 +1,72 @@
+# Grafana Alerting Configuration
+# ───────────────────────────────
+# Provisioned alert rules for error rate and latency.
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: APM Alerts
+    folder: APM Platform
+    interval: 1m
+    rules:
+      # ── High Error Rate Alert ────────────────────────────────
+      - uid: high-error-rate
+        title: "High Error Rate"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: ""
+            model:
+              expr: sum(rate(http_errors_total[5m]))
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: ""
+            model:
+              expr: sum(rate(http_requests_total[5m]))
+              refId: B
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: math
+              expression: "$A / $B > 0.05"
+              refId: C
+        for: 5m
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate exceeds 5% for the last 5 minutes"
+          description: "The application error rate is {{ $values.C }}%. Investigate recent errors in Loki."
+
+      # ── High Latency Alert ──────────────────────────────────
+      - uid: high-latency-p95
+        title: "High P95 Latency"
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: ""
+            model:
+              expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1.0
+              refId: A
+        for: 5m
+        noDataState: OK
+        execErrState: Alerting
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 latency exceeds 1 second"
+          description: "The application P95 latency is elevated. Check the /slow endpoint or downstream services."

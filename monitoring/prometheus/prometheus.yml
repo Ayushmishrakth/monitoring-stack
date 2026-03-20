@@ -1,0 +1,17 @@
+# Prometheus Configuration
+# ────────────────────────
+# Scrapes metrics from the Node.js app every 5 seconds.
+# Uses Docker service name "app" — resolved via Docker DNS.
+
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: "apm-app"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["app:3000"]
+        labels:
+          environment: "production"
+          service: "apm-app"

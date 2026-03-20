@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+dist/
+build/
+.npm/
+npm-debug.log*
+
+# Environment
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker / Monitoring Data
+data/
+prometheus-data/
+loki-data/
+tempo-data/
+grafana-data/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+/tmp/
+*.log
